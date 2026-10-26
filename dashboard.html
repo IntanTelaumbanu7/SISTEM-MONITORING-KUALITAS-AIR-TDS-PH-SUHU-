@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Monitoring Kualitas Air IoT</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <!-- MQTT.js -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --primary: #0d6efd;
+            --background: #f4f7fb;
+            --card: #ffffff;
+            --text: #243247;
+        }
+
+        body {
+            background: var(--background);
+            font-family: Arial, sans-serif;
+            color: var(--text);
+            margin: 0;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 245px;
+            height: 100vh;
+            background: #102a43;
+            color: white;
+            padding: 25px 18px;
+        }
+
+        .brand {
+            font-size: 19px;
+            font-weight: bold;
+            margin-bottom: 35px;
+        }
+
+        .brand i {
+            color: #38bdf8;
+            margin-right: 10px;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+        }
+
+        .sidebar-menu li {
+            padding: 13px 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            color: #d9e2ec;
+        }
+
+        .sidebar-menu li.active {
+            background: #0d6efd;
+            color: white;
+        }
+
+        .sidebar-menu i {
+            width: 25px;
+        }
+
+        .main-content {
+            margin-left: 245px;
+            padding: 28px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 28px;
+        }
+
+        .topbar h1 {
+            font-size: 25px;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .connection-badge {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .connection-badge.connected {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .connection-badge.disconnected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .sensor-card {
+            background: var(--card);
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+            height: 100%;
+            border: 1px solid #edf0f5;
+        }
+
+        .sensor-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sensor-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .temperature-icon {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .tds-icon {
+            background: #dbeafe;
+            color: #2563eb;
+        }
+
+        .ph-icon {
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+
+        .sensor-label {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 18px;
+        }
+
+        .sensor-value {
+            font-size: 34px;
+            font-weight: bold;
+            margin: 8px 0;
+            color: #1e293b;
+        }
+
+        .sensor-description {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .section-card {
+            background: white;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+            border: 1px solid #edf0f5;
+            margin-top: 24px;
+        }
+
+        .section-title {
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .section-subtitle {
+            font-size: 13px;
+            color: #718096;
+            margin-bottom: 22px;
+        }
+
+        .status-panel {
+            padding: 16px;
+            border-radius: 10px;
+            background: #f8fafc;
+            margin-bottom: 12px;
+        }
+
+        .status-panel strong {
+            display: block;
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+
+        .status-panel span {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .table thead th {
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .table tbody td {
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+        .footer {
+            margin-top: 28px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .empty-state {
+            color: #94a3b8;
+            text-align: center;
+            padding: 25px;
+        }
+
+        @media (max-width: 900px) {
+            .sidebar {
+                width: 70px;
+                padding: 20px 12px;
+            }
+
+            .brand {
+                font-size: 0;
+                text-align: center;
+            }
+
+            .brand i {
+                font-size: 24px;
+                margin: 0;
+            }
+
+            .sidebar-menu span {
+                display: none;
+            }
+
+            .sidebar-menu li {
+                text-align: center;
+                padding: 14px 0;
+            }
+
+            .sidebar-menu i {
+                width: auto;
+            }
+
+            .main-content {
+                margin-left: 70px;
+                padding: 18px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .main-content {
+                padding: 14px;
+            }
+
+            .topbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .topbar h1 {
+                font-size: 21px;
+            }
+
+            .sensor-value {
+                font-size: 29px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+    <div class="brand">
+        <i class="fa-solid fa-droplet"></i>
+        WaterQuality
+    </div>
+
+    <ul class="sidebar-menu">
+        <li class="active">
+            <i class="fa-solid fa-chart-line"></i>
+            <span>Dashboard</span>
+        </li>
+
+        <li>
+            <i class="fa-solid fa-temperature-half"></i>
+            <span>Sensor Suhu</span>
+        </li>
+
+        <li>
+            <i class="fa-solid fa-flask"></i>
+            <span>Sensor TDS</span>
+        </li>
+
+        <li>
+            <i class="fa-solid fa-vial"></i>
+            <span>Sensor pH</span>
+        </li>
+
+        <li>
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span>Riwayat Data</span>
+        </li>
+    </ul>
+</aside>
+
+<!-- KONTEN UTAMA -->
+<main class="main-content">
+
+    <!-- HEADER -->
+    <header class="topbar">
+        <div>
+            <h1>Dashboard Kualitas Air</h1>
+            <div class="subtitle">
+                Monitoring sensor ESP32 secara real-time melalui MQTT
+            </div>
+        </div>
+
+        <div id="connectionStatus" class="connection-badge">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            Menghubungkan MQTT...
+        </div>
+    </header>
+
+    <!-- KARTU SENSOR -->
+    <section class="row g-3">
+
+        <!-- SUHU -->
+        <div class="col-md-4">
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <div>
+                        <div class="sensor-label">Suhu Air</div>
+                        <div class="sensor-value">
+                            <span id="temperature">--.-</span>
+                            <small style="font-size: 18px;">°C</small>
+                        </div>
+                    </div>
+
+                    <div class="sensor-icon temperature-icon">
+                        <i class="fa-solid fa-temperature-half"></i>
+                    </div>
+                </div>
+
+                <div class="sensor-description" id="temperatureStatus">
+                    Menunggu data sensor...
+                </div>
+            </div>
+        </div>
+
+        <!-- TDS -->
+        <div class="col-md-4">
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <div>
+                        <div class="sensor-label">Total Dissolved Solids</div>
+                        <div class="sensor-value">
+                            <span id="tds">---</span>
+                            <small style="font-size: 18px;">ppm</small>
+                        </div>
+                    </div>
+
+                    <div class="sensor-icon tds-icon">
+                        <i class="fa-solid fa-water"></i>
+                    </div>
+                </div>
+
+                <div class="sensor-description" id="tdsStatus">
+                    Menunggu data sensor...
+                </div>
+            </div>
+        </div>
+
+        <!-- PH -->
+        <div class="col-md-4">
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <div>
+                        <div class="sensor-label">Derajat Keasaman</div>
+                        <div class="sensor-value">
+                            <span id="ph">--.-</span>
+                            <small style="font-size: 18px;">pH</small>
+                        </div>
+                    </div>
+
+                    <div class="sensor-icon ph-icon">
+                        <i class="fa-solid fa-flask"></i>
+                    </div>
+                </div>
+
+                <div class="sensor-description" id="phStatus">
+                    Menunggu data sensor...
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- GRAFIK -->
+    <section class="section-card">
+        <div class="section-title">
+            <i class="fa-solid fa-chart-area me-2"></i>
+            Grafik Monitoring Sensor
+        </div>
+
+        <div class="section-subtitle">
+            Perubahan nilai sensor berdasarkan data MQTT yang diterima.
+        </div>
+
+        <canvas id="sensorChart" height="100"></canvas>
+    </section>
+
+    <!-- STATUS -->
+    <section class="section-card">
+        <div class="section-title">
+            <i class="fa-solid fa-circle-info me-2"></i>
+            Informasi Monitoring
+        </div>
+
+        <div class="section-subtitle">
+            Informasi pembacaan sensor dan komunikasi perangkat.
+        </div>
+
+        <div class="row g-3">
+
+            <div class="col-md-4">
+                <div class="status-panel">
+                    <strong>Status Perangkat</strong>
+                    <span id="deviceStatus">Menunggu data ESP32</span>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="status-panel">
+                    <strong>Penerimaan Data</strong>
+                    <span id="lastUpdate">Belum ada data diterima</span>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="status-panel">
+                    <strong>Total Data Diterima</strong>
+                    <span id="dataCount">0 data</span>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- TABEL RIWAYAT -->
+    <section class="section-card">
+        <div class="section-title">
+            <i class="fa-solid fa-clock-rotate-left me-2"></i>
+            Riwayat Pembacaan Sensor
+        </div>
+
+        <div class="section-subtitle">
+            Data terbaru ditampilkan di bagian atas tabel.
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Waktu</th>
+                        <th>Suhu (°C)</th>
+                        <th>TDS (ppm)</th>
+                        <th>pH</th>
+                    </tr>
+                </thead>
+
+                <tbody id="historyTable">
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            Belum ada data sensor.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer class="footer">
+        Sistem Monitoring Kualitas Air Berbasis IoT |
+        ESP32 & MQTT
+    </footer>
+
+</main>
+
+<script>
+    // ==========================================
+    // KONFIGURASI MQTT
+    // ==========================================
+
+    // Ganti NIM_ANDA dengan NIM yang sama seperti
+    // pada program C++ ESP32.
+    const MQTT_TOPIC = "kelas/iot/waterquality/NIM_ANDA";
+
+    // Broker MQTT melalui WebSocket.
+    // Port 1883 pada ESP32 menggunakan TCP biasa.
+    // Browser menggunakan WebSocket pada port 8884 (WSS).
+    const MQTT_URL = "wss://broker.hivemq.com:8884/mqtt";
+
+    const connectionStatus =
+        document.getElementById("connectionStatus");
+
+    const MAX_CHART_POINTS = 20;
+    const MAX_HISTORY_ROWS = 20;
+
+    let totalData = 0;
+    let historyData = [];
+
+    // ==========================================
+    // GRAFIK CHART.JS
+    // ==========================================
+
+    const chartContext =
+        document.getElementById("sensorChart").getContext("2d");
+
+    const sensorChart = new Chart(chartContext, {
+        type: "line",
+
+        data: {
+            labels: [],
+
+            datasets: [
+                {
+                    label: "Suhu (°C)",
+                    data: [],
+                    borderColor: "#ef4444",
+                    backgroundColor: "rgba(239,68,68,0.10)",
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: false,
+                    yAxisID: "y"
+                },
+                {
+                    label: "TDS (ppm)",
+                    data: [],
+                    borderColor: "#2563eb",
+                    backgroundColor: "rgba(37,99,235,0.10)",
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: false,
+                    yAxisID: "y1"
+                },
+                {
+                    label: "pH",
+                    data: [],
+                    borderColor: "#8b5cf6",
+                    backgroundColor: "rgba(139,92,246,0.10)",
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: false,
+                    yAxisID: "y2"
+                }
+            ]
+        },
+
+        options: {
+            responsive: true,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+
+            plugins: {
+                legend: {
+                    position: "bottom"
+                }
+            },
+
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: "Waktu"
+                    }
+                },
+
+                y: {
+                    type: "linear",
+                    position: "left",
+                    title: {
+                        display: true,
+                        text: "Suhu (°C)"
+                    }
+                },
+
+                y1: {
+                    type: "linear",
+                    position: "right",
+                    title: {
+                        display: true,
+                        text: "TDS (ppm)"
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                },
+
+                y2: {
+                    type: "linear",
+                    position: "right",
+                    display: false,
+                    min: 0,
+                    max: 14
+                }
+            }
+        }
+    });
+
+    // ==========================================
+    // KONEKSI MQTT
+    // ==========================================
+
+    const client = mqtt.connect(MQTT_URL, {
+        clientId: "DashboardWater_" +
+            Math.random().toString(16).slice(2, 10),
+
+        clean: true,
+        connectTimeout: 10000,
+        reconnectPeriod: 3000
+    });
+
+    client.on("connect", function () {
+        connectionStatus.className =
+            "connection-badge connected";
+
+        connectionStatus.innerHTML =
+            '<i class="fa-solid fa-circle-check"></i> MQTT Terhubung';
+
+        document.getElementById("deviceStatus").textContent =
+            "Dashboard terhubung ke broker MQTT";
+
+        client.subscribe(MQTT_TOPIC, function (error) {
+            if (error) {
+                connectionStatus.className =
+                    "connection-badge disconnected";
+
+                connectionStatus.textContent =
+                    "Gagal berlangganan topik";
+
+                console.error(
+                    "Gagal subscribe:",
+                    error
+                );
+            } else {
+                console.log(
+                    "Berhasil subscribe ke:",
+                    MQTT_TOPIC
+                );
+            }
+        });
+    });
+
+    client.on("reconnect", function () {
+        connectionStatus.className =
+            "connection-badge";
+
+        connectionStatus.textContent =
+            "Menghubungkan ulang...";
+    });
+
+    client.on("offline", function () {
+        connectionStatus.className =
+            "connection-badge disconnected";
+
+        connectionStatus.textContent =
+            "MQTT Offline";
+    });
+
+    client.on("error", function (error) {
+        console.error("MQTT Error:", error);
+
+        connectionStatus.className =
+            "connection-badge disconnected";
+
+        connectionStatus.textContent =
+            "Koneksi MQTT Bermasalah";
+    });
+
+    // ==========================================
+    // MENERIMA DATA JSON DARI ESP32
+    // ==========================================
+
+    client.on("message", function (topic, message) {
+        if (topic !== MQTT_TOPIC) {
+            return;
+        }
+
+        try {
+            const data = JSON.parse(
+                message.toString()
+            );
+
+            // Validasi data agar nilai yang tidak tersedia
+            // tidak ditampilkan sebagai data valid.
+            const temp = Number(data.suhu);
+            const tdsValue = Number(data.tds);
+            const phValue = Number(data.ph);
+
+            if (
+                !Number.isFinite(temp) ||
+                !Number.isFinite(tdsValue) ||
+                !Number.isFinite(phValue)
+            ) {
+                throw new Error(
+                    "Format data suhu, TDS, atau pH tidak valid."
+                );
+            }
+
+            // Perbarui kartu sensor.
+            document.getElementById("temperature")
+                .textContent = temp.toFixed(1);
+
+            document.getElementById("tds")
+                .textContent = Math.round(tdsValue);
+
+            document.getElementById("ph")
+                .textContent = phValue.toFixed(1);
+
+            // Perbarui deskripsi pembacaan.
+            updateSensorStatus(
+                temp,
+                tdsValue,
+                phValue
+            );
+
+            // Waktu penerimaan data.
+            const now = new Date();
+
+            const timeLabel = now.toLocaleTimeString(
+                "id-ID",
+                {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                }
+            );
+
+            document.getElementById("lastUpdate")
+                .textContent = now.toLocaleString("id-ID");
+
+            document.getElementById("deviceStatus")
+                .textContent = "Data ESP32 diterima";
+
+            // Perbarui grafik.
+            updateChart(
+                timeLabel,
+                temp,
+                tdsValue,
+                phValue
+            );
+
+            // Perbarui riwayat.
+            addHistory(
+                timeLabel,
+                temp,
+                tdsValue,
+                phValue
+            );
+
+            totalData++;
+
+            document.getElementById("dataCount")
+                .textContent = totalData + " data";
+
+            console.log("Data sensor:", data);
+
+        } catch (error) {
+            console.error(
+                "Gagal membaca JSON:",
+                error
+            );
+        }
+    });
+
+    // ==========================================
+    // STATUS SENSOR
+    // ==========================================
+
+    function updateSensorStatus(temp, tdsValue, phValue) {
+
+        // Indikator suhu hanya berupa informasi awal,
+        // bukan penilaian kelayakan air.
+        document.getElementById("temperatureStatus")
+            .textContent =
+            temp + " °C | Pembacaan sensor NTC";
+
+        // Indikator TDS.
+        // Batas ini hanya contoh untuk monitoring,
+        // bukan sertifikasi kualitas air.
+        let tdsText;
+
+        if (tdsValue < 300) {
+            tdsText = "TDS relatif rendah";
+        } else if (tdsValue <= 600) {
+            tdsText = "TDS tingkat menengah";
+        } else {
+            tdsText = "TDS relatif tinggi";
+        }
+
+        document.getElementById("tdsStatus")
+            .textContent = tdsText;
+
+        // Indikator pH berdasarkan kisaran umum.
+        let phText;
+
+        if (phValue < 6.5) {
+            phText = "Cenderung asam";
+        } else if (phValue <= 8.5) {
+            phText = "Dalam kisaran pH umum air minum";
+        } else {
+            phText = "Cenderung basa";
+        }
+
+        document.getElementById("phStatus")
+            .textContent = phText;
+    }
+
+    // ==========================================
+    // MEMPERBARUI GRAFIK
+    // ==========================================
+
+    function updateChart(time, temp, tdsValue, phValue) {
+
+        sensorChart.data.labels.push(time);
+
+        sensorChart.data.datasets[0].data.push(temp);
+        sensorChart.data.datasets[1].data.push(tdsValue);
+        sensorChart.data.datasets[2].data.push(phValue);
+
+        // Batasi grafik hingga 20 pembacaan terakhir.
+        if (
+            sensorChart.data.labels.length >
+            MAX_CHART_POINTS
+        ) {
+            sensorChart.data.labels.shift();
+
+            sensorChart.data.datasets.forEach(
+                function (dataset) {
+                    dataset.data.shift();
+                }
+            );
+        }
+
+        sensorChart.update();
+    }
+
+    // ==========================================
+    // RIWAYAT DATA
+    // ==========================================
+
+    function addHistory(time, temp, tdsValue, phValue) {
+
+        historyData.unshift({
+            time: time,
+            temp: temp,
+            tds: tdsValue,
+            ph: phValue
+        });
+
+        if (historyData.length > MAX_HISTORY_ROWS) {
+            historyData.pop();
+        }
+
+        const table =
+            document.getElementById("historyTable");
+
+        table.innerHTML = "";
+
+        historyData.forEach(function (item, index) {
+
+            const row = document.createElement("tr");
+
+            const values = [
+                index + 1,
+                item.time,
+                item.temp.toFixed(1),
+                Math.round(item.tds),
+                item.ph.toFixed(1)
+            ];
+
+            values.forEach(function (value) {
+                const cell = document.createElement("td");
+
+                cell.textContent = value;
+
+                row.appendChild(cell);
+            });
+
+            table.appendChild(row);
+        });
+    }
+</script>
+
+</body>
+</html>
